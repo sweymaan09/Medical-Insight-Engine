@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Medical Report Analysis API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: reports
+    description: Medical report operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List all medical reports
+      responses:
+        "200":
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+
+  /reports/{id}:
+    get:
+      operationId: getReport
+      tags: [reports]
+      summary: Get a single report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteReport
+      tags: [reports]
+      summary: Delete a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reports/stats/summary:
+    get:
+      operationId: getReportsSummary
+      tags: [reports]
+      summary: Get summary stats for all reports
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportsSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +109,94 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    LabValue:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        unit:
+          type: string
+        referenceRange:
+          type: string
+        status:
+          type: string
+          enum: [normal, high, low, critical]
+        explanation:
+          type: string
+      required:
+        - name
+        - value
+        - unit
+        - referenceRange
+        - status
+        - explanation
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+        fileName:
+          type: string
+        fileType:
+          type: string
+        uploadedAt:
+          type: string
+        status:
+          type: string
+          enum: [pending, analyzing, done, error]
+        reportType:
+          type: ["string", "null"]
+        patientName:
+          type: ["string", "null"]
+        reportDate:
+          type: ["string", "null"]
+        summary:
+          type: ["string", "null"]
+        simplifiedExplanation:
+          type: ["string", "null"]
+        healthInsights:
+          type: ["string", "null"]
+        labValues:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/LabValue"
+        abnormalCount:
+          type: ["integer", "null"]
+        criticalCount:
+          type: ["integer", "null"]
+      required:
+        - id
+        - fileName
+        - fileType
+        - uploadedAt
+        - status
+
+    ReportsSummary:
+      type: object
+      properties:
+        totalReports:
+          type: integer
+        reportsWithAbnormal:
+          type: integer
+        reportsWithCritical:
+          type: integer
+        recentReports:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"
+      required:
+        - totalReports
+        - reportsWithAbnormal
+        - reportsWithCritical
+        - recentReports
