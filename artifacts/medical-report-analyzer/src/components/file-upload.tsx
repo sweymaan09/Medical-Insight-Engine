@@ -1,10 +1,8 @@
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
 import { UploadCloud, ImageIcon, FileText } from "lucide-react";
 import { useUploadReport } from "@/hooks/use-upload-report";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function FileUpload() {
@@ -48,7 +46,6 @@ export function FileUpload() {
       });
       return;
     }
-
     try {
       const report = await uploadReport(file);
       toast({ title: "File uploaded! Reading your report now..." });
@@ -64,16 +61,15 @@ export function FileUpload() {
 
   return (
     <motion.div
-      animate={{
-        borderColor: isDragging ? "hsl(var(--primary))" : isUploading ? "hsl(var(--primary))" : "#cbd5e1",
-        scale: isDragging ? 1.01 : 1,
-      }}
+      animate={{ scale: isDragging ? 1.015 : 1 }}
       transition={{ duration: 0.2 }}
-      className={cn(
-        "relative flex flex-col items-center justify-center w-full max-w-2xl mx-auto border-2 border-dashed rounded-2xl p-10 md:p-14 transition-colors cursor-pointer",
-        isDragging ? "bg-teal-50" : "bg-white hover:bg-slate-50",
-        isUploading && "pointer-events-none"
-      )}
+      className="relative flex flex-col items-center justify-center w-full max-w-2xl mx-auto p-10 md:p-14 cursor-pointer"
+      style={{
+        background: isDragging
+          ? "rgba(20,184,166,0.07)"
+          : "transparent",
+        transition: "background 0.2s",
+      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -89,12 +85,41 @@ export function FileUpload() {
         data-testid="file-input"
       />
 
+      {/* Pulsing ring when dragging */}
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            style={{
+              position: "absolute", inset: 0, borderRadius: 16,
+              border: "2px solid rgba(45,212,191,0.6)",
+              boxShadow: "0 0 30px rgba(45,212,191,0.3), inset 0 0 30px rgba(45,212,191,0.05)",
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Icon area */}
-      <div className="relative mb-5">
+      <div className="relative mb-6">
         <motion.div
-          className="w-20 h-20 rounded-2xl bg-teal-50 flex items-center justify-center"
-          animate={{ rotate: isDragging ? [0, -5, 5, 0] : 0 }}
-          transition={{ duration: 0.4 }}
+          className="w-20 h-20 rounded-2xl flex items-center justify-center"
+          style={{
+            background: "rgba(20,184,166,0.12)",
+            border: "1px solid rgba(45,212,191,0.3)",
+            boxShadow: "0 0 24px rgba(20,184,166,0.2)",
+          }}
+          animate={{
+            rotate: isDragging ? [0, -6, 6, 0] : 0,
+            boxShadow: isUploading
+              ? ["0 0 16px rgba(20,184,166,0.3)", "0 0 40px rgba(20,184,166,0.7)", "0 0 16px rgba(20,184,166,0.3)"]
+              : "0 0 24px rgba(20,184,166,0.2)",
+          }}
+          transition={{
+            rotate: { duration: 0.4 },
+            boxShadow: isUploading ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 },
+          }}
         >
           <AnimatePresence mode="wait">
             {isUploading ? (
@@ -103,12 +128,15 @@ export function FileUpload() {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="flex flex-col items-center gap-1"
               >
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  className="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full"
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                  style={{
+                    width: 36, height: 36, borderRadius: "50%",
+                    border: "3px solid rgba(45,212,191,0.2)",
+                    borderTopColor: "#2dd4bf",
+                  }}
                 />
               </motion.div>
             ) : (
@@ -118,7 +146,7 @@ export function FileUpload() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
               >
-                <UploadCloud className="w-9 h-9 text-teal-500" />
+                <UploadCloud className="w-9 h-9" style={{ color: "#2dd4bf" }} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -131,9 +159,10 @@ export function FileUpload() {
               {["-top-3 -right-3", "-top-2 -left-4", "top-8 -right-5"].map((pos, i) => (
                 <motion.div
                   key={i}
-                  className={`absolute ${pos} w-3 h-3 bg-teal-300 rounded-full`}
+                  className={`absolute ${pos} w-3 h-3 rounded-full`}
+                  style={{ background: "#2dd4bf", boxShadow: "0 0 12px rgba(45,212,191,0.8)" }}
                   initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: [0, 1, 0], scale: [0, 1.2, 0], y: [-5, -15, -25] }}
+                  animate={{ opacity: [0, 1, 0], scale: [0, 1.2, 0], y: [-5, -20, -35] }}
                   transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
                 />
               ))}
@@ -142,30 +171,42 @@ export function FileUpload() {
         </AnimatePresence>
       </div>
 
-      <h3 className="text-xl font-bold text-slate-800 mb-2 text-center">
+      <h3 className="text-xl font-bold mb-2 text-center" style={{ color: "#e2e8f0" }}>
         {isUploading ? "Uploading your report..." : isDragging ? "Drop it here!" : "Upload Medical Report"}
       </h3>
-      <p className="text-slate-400 text-center mb-6 max-w-sm text-sm leading-relaxed">
+      <p className="text-center mb-7 max-w-sm text-sm leading-relaxed" style={{ color: "rgba(186,230,253,0.6)" }}>
         {isUploading
           ? "Please wait while we upload your file..."
           : "Take a clear photo of your report and upload it. We will explain every number in simple words."}
       </p>
 
-      <Button
+      <motion.button
         onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
         disabled={isUploading}
-        size="lg"
-        className="px-8 rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-100"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.97 }}
+        style={{
+          padding: "0.75rem 2.5rem",
+          borderRadius: 9999,
+          fontWeight: 700,
+          fontSize: "0.95rem",
+          background: isUploading ? "rgba(45,212,191,0.3)" : "linear-gradient(135deg, #14b8a6, #06b6d4)",
+          color: "#fff",
+          border: "none",
+          cursor: isUploading ? "not-allowed" : "pointer",
+          boxShadow: "0 0 24px rgba(20,184,166,0.5), 0 4px 16px rgba(20,184,166,0.3)",
+          letterSpacing: "0.02em",
+        }}
         data-testid="button-select-file"
       >
         {isUploading ? "Uploading..." : "Choose File"}
-      </Button>
+      </motion.button>
 
-      <div className="flex items-center gap-4 mt-6 text-xs text-slate-400">
+      <div className="flex items-center gap-4 mt-6 text-xs" style={{ color: "rgba(186,230,253,0.45)" }}>
         <span className="flex items-center gap-1.5">
           <ImageIcon className="w-3.5 h-3.5" /> Photo (JPG / PNG)
         </span>
-        <span className="w-1 h-1 rounded-full bg-slate-300" />
+        <span className="w-1 h-1 rounded-full" style={{ background: "rgba(186,230,253,0.3)" }} />
         <span className="flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5" /> PDF file
         </span>
