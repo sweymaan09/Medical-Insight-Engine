@@ -2,12 +2,12 @@ import { useRoute, Link, useLocation } from "wouter";
 import { useGetReport, getGetReportQueryKey, useDeleteReport, getListReportsQueryKey, getGetReportsSummaryQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, Loader2, HeartPulse, FileText, Calendar, User, Trash2, ShieldCheck, Activity, AlertCircle } from "lucide-react";
+import { ArrowLeft, HeartPulse, FileText, Calendar, User, Trash2, AlertCircle, Lightbulb, Apple, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LabValueCard } from "@/components/lab-value-card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +20,56 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+
+const AnalyzingAnimation = () => (
+  <div className="bg-white rounded-2xl border shadow-sm p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+    <div className="relative mb-8">
+      <div className="w-24 h-24 rounded-full bg-teal-50 flex items-center justify-center">
+        <HeartPulse className="w-10 h-10 text-teal-600" />
+      </div>
+      <motion.div
+        className="absolute inset-0 rounded-full border-4 border-teal-300"
+        animate={{ scale: [1, 1.4, 1], opacity: [1, 0, 1] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute inset-0 rounded-full border-4 border-teal-200"
+        animate={{ scale: [1, 1.7, 1], opacity: [0.7, 0, 0.7] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+      />
+    </div>
+    <h2 className="text-2xl font-bold text-slate-900 mb-3">Reading your report...</h2>
+    <p className="text-slate-500 max-w-sm mx-auto text-base leading-relaxed">
+      We are looking at each number in your report and finding out what it means for your health. This takes about 15-20 seconds.
+    </p>
+    <div className="mt-8 flex gap-2 items-center">
+      {[0, 1, 2, 3].map((i) => (
+        <motion.div
+          key={i}
+          className="w-2.5 h-2.5 rounded-full bg-teal-500"
+          animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: "easeInOut" }}
+        />
+      ))}
+    </div>
+    <div className="mt-8 grid grid-cols-3 gap-3 max-w-xs mx-auto">
+      {["Finding numbers", "Checking levels", "Writing advice"].map((step, i) => (
+        <motion.div
+          key={step}
+          className="text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: i * 4, duration: 1, repeat: Infinity, repeatDelay: 12 - i }}
+        >
+          <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mx-auto mb-1">
+            <span className="text-teal-700 font-bold text-xs">{i + 1}</span>
+          </div>
+          <span className="text-xs text-slate-500">{step}</span>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+);
 
 export default function ReportDetail() {
   const [, params] = useRoute("/reports/:id");
@@ -34,8 +84,7 @@ export default function ReportDetail() {
       enabled: !!id,
       queryKey: getGetReportQueryKey(id),
       refetchInterval: (data) => {
-        const stateData = data as any; // Type cast due to generic return issues with orval sometimes
-        // In react-query v5, refetchInterval receives the query state
+        const stateData = data as any;
         const status = stateData?.state?.data?.status || stateData?.status;
         return status === "analyzing" || status === "pending" ? 2000 : false;
       },
@@ -45,13 +94,13 @@ export default function ReportDetail() {
   const handleDelete = () => {
     deleteReport.mutate({ id }, {
       onSuccess: () => {
-        toast({ title: "Report deleted" });
+        toast({ title: "Report removed" });
         queryClient.invalidateQueries({ queryKey: getListReportsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetReportsSummaryQueryKey() });
         setLocation("/");
       },
-      onError: (err) => {
-        toast({ title: "Failed to delete", description: err.error || "Unknown error", variant: "destructive" });
+      onError: () => {
+        toast({ title: "Could not remove report", variant: "destructive" });
       }
     });
   };
@@ -59,12 +108,12 @@ export default function ReportDetail() {
   if (isError) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-xl shadow-sm border max-w-md w-full text-center">
-          <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Report Not Found</h2>
-          <p className="text-muted-foreground mb-6">This report might have been deleted or doesn't exist.</p>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border max-w-md w-full text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2 text-slate-800">Report Not Found</h2>
+          <p className="text-slate-500 mb-6">This report was deleted or does not exist.</p>
           <Button asChild className="w-full">
-            <Link href="/">Back to Dashboard</Link>
+            <Link href="/">Go Back Home</Link>
           </Button>
         </div>
       </div>
@@ -72,6 +121,15 @@ export default function ReportDetail() {
   }
 
   const isProcessing = report?.status === "pending" || report?.status === "analyzing";
+
+  const labValues = report?.labValues as Array<{
+    name: string; value: string; unit: string; referenceRange: string;
+    status: string; explanation: string; problem?: string; cause?: string; solution?: string;
+  }> | null | undefined;
+
+  const criticalValues = labValues?.filter(v => v.status === "critical") ?? [];
+  const problemValues = labValues?.filter(v => v.status === "high" || v.status === "low") ?? [];
+  const goodValues = labValues?.filter(v => v.status === "normal") ?? [];
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 pb-24">
@@ -81,31 +139,31 @@ export default function ReportDetail() {
             <Button variant="ghost" size="icon" asChild className="-ml-2">
               <Link href="/"><ArrowLeft className="w-5 h-5" /></Link>
             </Button>
-            <div className="flex items-center gap-2 text-primary font-bold tracking-tight">
+            <div className="flex items-center gap-2 text-teal-600 font-bold tracking-tight">
               <HeartPulse className="w-5 h-5" />
               <span className="hidden sm:inline">ClearHealth</span>
             </div>
           </div>
-          
+
           {report && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-red-500 hover:bg-red-50">
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
+                  Remove
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this report?</AlertDialogTitle>
+                  <AlertDialogTitle>Remove this report?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the report and all its extracted data.
+                    This will delete the report and all its results. You cannot undo this.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete
+                  <AlertDialogCancel>Keep it</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white">
+                    Remove
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -117,121 +175,195 @@ export default function ReportDetail() {
       <main className="max-w-4xl mx-auto px-4 md:px-6 pt-8">
         {isLoading ? (
           <div className="space-y-6">
-            <Skeleton className="h-12 w-3/4 max-w-lg" />
-            <Skeleton className="h-6 w-1/3" />
-            <Skeleton className="h-64 w-full mt-8" />
+            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="h-5 w-1/3" />
+            <Skeleton className="h-48 w-full mt-8" />
           </div>
         ) : report ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+          >
+            {/* Title bar */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
               <div>
-                <h1 className="text-2xl md:text-3xl font-serif text-slate-900 mb-3 flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
                   {report.reportType || "Medical Report"}
-                  {report.status === "done" && (
-                    <Badge variant={report.criticalCount ? "destructive" : report.abnormalCount ? "secondary" : "outline"} className={cn(
-                      "text-sm px-3 py-1 ml-2 align-middle",
-                      report.abnormalCount && !report.criticalCount ? "bg-amber-100 text-amber-800 border-amber-200" : "",
-                      report.criticalCount ? "animate-pulse" : "",
-                      !report.criticalCount && !report.abnormalCount ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""
-                    )}>
-                      {report.criticalCount ? `${report.criticalCount} Critical` : 
-                       report.abnormalCount ? `${report.abnormalCount} Abnormal` : "All Normal"}
-                    </Badge>
-                  )}
                 </h1>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
                   {report.patientName && (
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-4 h-4" /> {report.patientName}
+                    <div className="flex items-center gap-1">
+                      <User className="w-3.5 h-3.5" /> {report.patientName}
                     </div>
                   )}
                   {report.reportDate && (
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4" /> {format(new Date(report.reportDate), "MMMM d, yyyy")}
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {report.reportDate}
                     </div>
                   )}
-                  <div className="flex items-center gap-1.5">
-                    <FileText className="w-4 h-4" /> Uploaded {format(new Date(report.uploadedAt), "MMM d")}
+                  <div className="flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> Uploaded {format(new Date(report.uploadedAt), "MMM d, yyyy")}
                   </div>
                 </div>
               </div>
+
+              {/* Quick status pill */}
+              {report.status === "done" && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.3, type: "spring" }}
+                  className={cn(
+                    "flex-shrink-0 px-4 py-2 rounded-full font-bold text-sm",
+                    report.criticalCount ? "bg-red-100 text-red-700 animate-pulse" :
+                    report.abnormalCount ? "bg-orange-100 text-orange-700" :
+                    "bg-emerald-100 text-emerald-700"
+                  )}
+                >
+                  {report.criticalCount ? `⚡ ${report.criticalCount} Urgent` :
+                   report.abnormalCount ? `${report.abnormalCount} Need Attention` :
+                   "All Looks Good"}
+                </motion.div>
+              )}
             </div>
 
             {isProcessing ? (
-              <div className="bg-white rounded-2xl border shadow-sm p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 relative">
-                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                  <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
-                </div>
-                <h2 className="text-2xl font-serif text-slate-900 mb-2">Analyzing your results</h2>
-                <p className="text-slate-500 max-w-md mx-auto">
-                  Our secure AI is reading your document, extracting lab values, and preparing a simple explanation. This usually takes about 10-20 seconds.
-                </p>
-                <div className="mt-8 flex gap-2">
-                  <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
+              <AnalyzingAnimation />
             ) : report.status === "error" ? (
-              <div className="bg-destructive/5 rounded-2xl border border-destructive/20 p-8 text-center">
-                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-                <h2 className="text-xl font-medium text-slate-900 mb-2">Analysis Failed</h2>
-                <p className="text-slate-600 mb-6">We couldn't read this document. It might be blurry, password protected, or not a standard medical report.</p>
-                <Button onClick={handleDelete} variant="outline">Delete & Try Another</Button>
+              <div className="bg-red-50 rounded-2xl border border-red-200 p-8 text-center">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-slate-900 mb-2">Could Not Read This File</h2>
+                <p className="text-slate-500 mb-6">
+                  The file may be blurry or not a medical report. Please try uploading a clearer image or a different file.
+                </p>
+                <Button onClick={handleDelete} variant="outline">Remove & Try Again</Button>
               </div>
             ) : (
-              <div className="space-y-8">
-                {/* Simplified Explanation */}
-                <section className="bg-white rounded-2xl border shadow-sm p-6 md:p-8 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-primary" />
-                    Plain English Summary
+              <div className="space-y-6">
+
+                {/* Overall Summary */}
+                <motion.section
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, duration: 0.4 }}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 relative overflow-hidden"
+                >
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-teal-500 rounded-l-2xl" />
+                  <h3 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-teal-600" />
+                    What Your Report Says
                   </h3>
-                  <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed">
-                    <p>{report.simplifiedExplanation}</p>
-                  </div>
-                </section>
+                  <p className="text-slate-700 leading-relaxed text-base">
+                    {report.simplifiedExplanation}
+                  </p>
+                </motion.section>
 
-                {/* Health Insights */}
+                {/* Health Advice */}
                 {report.healthInsights && (
-                  <section className="bg-primary/5 rounded-2xl border border-primary/10 p-6 md:p-8">
-                    <h3 className="text-lg font-bold text-primary-foreground mb-4">
-                      Key Takeaways & Next Steps
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.4 }}
+                    className="bg-teal-50 rounded-2xl border border-teal-100 p-6 md:p-8"
+                  >
+                    <h3 className="text-base font-bold text-teal-800 mb-3 flex items-center gap-2">
+                      <Apple className="w-4 h-4" />
+                      What You Can Do to Feel Better
                     </h3>
-                    <div className="prose prose-slate max-w-none text-slate-800 leading-relaxed">
-                      {report.healthInsights.split('\n').map((paragraph, i) => (
-                        <p key={i} className="mb-3 last:mb-0">{paragraph}</p>
+                    <div className="space-y-2">
+                      {report.healthInsights.split('\n').filter(Boolean).map((line, i) => (
+                        <motion.p
+                          key={i}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 + i * 0.05 }}
+                          className="text-slate-700 leading-relaxed text-sm"
+                        >
+                          {line}
+                        </motion.p>
                       ))}
                     </div>
-                  </section>
+                  </motion.section>
                 )}
 
-                {/* Lab Values */}
-                {report.labValues && report.labValues.length > 0 && (
-                  <section>
+                {/* Lab Values — critical first, then abnormal, then normal */}
+                {labValues && labValues.length > 0 && (
+                  <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, duration: 0.4 }}
+                  >
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold text-slate-900">Extracted Lab Results</h3>
-                      <span className="text-sm text-slate-500 font-medium">{report.labValues.length} values found</span>
+                      <h3 className="text-xl font-bold text-slate-900">Your Test Results</h3>
+                      <span className="text-sm text-slate-400">{labValues.length} tests checked</span>
                     </div>
-                    
-                    <div className="flex flex-col gap-3">
-                      {report.labValues
-                        // Sort so critical and high/low are at top
-                        .sort((a, b) => {
-                          const score = { critical: 3, high: 2, low: 2, normal: 0 };
-                          return (score[b.status as keyof typeof score] || 0) - (score[a.status as keyof typeof score] || 0);
-                        })
-                        .map((value, i) => (
-                          <LabValueCard key={i} labValue={value} />
-                      ))}
+
+                    <div className="space-y-3">
+                      {/* Critical — shown open by default */}
+                      {criticalValues.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2 px-1">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Urgent Attention Needed</span>
+                          </div>
+                          {criticalValues.map((v, i) => (
+                            <div key={v.name} className="mb-2">
+                              <LabValueCard labValue={v as any} index={i} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Abnormal */}
+                      {problemValues.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2 px-1">
+                            <span className="w-2 h-2 rounded-full bg-orange-400" />
+                            <span className="text-xs font-bold text-orange-600 uppercase tracking-wide">Needs Some Attention</span>
+                          </div>
+                          {problemValues.map((v, i) => (
+                            <div key={v.name} className="mb-2">
+                              <LabValueCard labValue={v as any} index={criticalValues.length + i} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Normal */}
+                      {goodValues.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2 px-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Healthy Values</span>
+                          </div>
+                          {goodValues.map((v, i) => (
+                            <div key={v.name} className="mb-2">
+                              <LabValueCard labValue={v as any} index={criticalValues.length + problemValues.length + i} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </section>
+                  </motion.section>
                 )}
+
+                {/* Reminder footer */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-slate-100 rounded-2xl p-5 flex gap-3 items-start"
+                >
+                  <Lightbulb className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    This report explains your test results in simple words and gives home care tips. For serious illness or if you feel very unwell, please visit your nearest health center or government hospital.
+                  </p>
+                </motion.div>
               </div>
             )}
-          </div>
+          </motion.div>
         ) : null}
       </main>
     </div>

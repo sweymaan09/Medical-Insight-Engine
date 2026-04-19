@@ -9,6 +9,9 @@ export const labValueSchema = z.object({
   referenceRange: z.string(),
   status: z.enum(["normal", "high", "low", "critical"]),
   explanation: z.string(),
+  problem: z.string().optional(),
+  cause: z.string().optional(),
+  solution: z.string().optional(),
 });
 
 export type LabValue = z.infer<typeof labValueSchema>;
